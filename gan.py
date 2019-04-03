@@ -41,9 +41,9 @@ class DCGAN():
         '''
 
         # uncomment to load discriminator, generator
-        self.discriminator = load_model('gan\\vroum\\vroumdis.h5')
+        self.discriminator = load_model('vroum\\vroumdis.h5')
         self.discriminator.compile(loss='binary_crossentropy',optimizer=optimizer,metrics=['accuracy'])
-        self.generator = load_model('gan\\vroum\\vroumgen.h5')
+        self.generator = load_model('vroum\\vroumgen.h5')
         
         # the combined model take an image as input and output validity from 0 to 1
         # note that in the combined model, the discriminator is not trainable
@@ -149,7 +149,7 @@ class DCGAN():
     def train(self, batch_size=128, save_interval=50, save_img_interval=50):
         
         #get dataset
-        X_train = self.load_dataset('C:\\Users\\maxim\\Desktop\\car_img\\*')
+        X_train = self.load_dataset('car_img\\*')
 
         # ones = label for real images
         # zeros = label for fake images
@@ -192,8 +192,8 @@ class DCGAN():
                 #self.discriminator.save('gan\\vroum\\vroumdis_'+str(epoch)+'.h5')
                 #self.generator.save('gan\\vroum\\vroumgen_'+str(epoch)+'.h5')
 
-                self.discriminator.save('gan\\vroum\\vroumdis.h5')
-                self.generator.save('gan\\vroum\\vroumgen.h5')
+                self.discriminator.save('vroum\\vroumdis.h5')
+                self.generator.save('vroum\\vroumgen.h5')
 
     def save_imgs(self, epoch):
 
@@ -204,7 +204,7 @@ class DCGAN():
         gen_img = (0.5 * gen_img + 0.5)*255
 
         for i in range(self.noise_pred.shape[0]):
-            cv2.imwrite('C:\\Users\\maxim\\Desktop\\car\\%d_%f.png'%(epoch, confidence), gen_img[i])
+            cv2.imwrite('car\\%d_%f.png'%(epoch, confidence), gen_img[i])
 
 
     def load_dataset(self,path):
@@ -224,7 +224,6 @@ class DCGAN():
                 img = cv2.resize(img,(self.img_cols, self.img_rows))
 
                 X_train.append(img)
-                #X_train.append(cv2.flip(img,0))
 
             cv2.destroyAllWindows()
             X_train = np.array(X_train)

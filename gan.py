@@ -195,7 +195,7 @@ class DCGAN():
                 self.discriminator.save('vroum\\vroumdis.h5')
                 self.generator.save('vroum\\vroumgen.h5')
 
-    def save_imgs(self, epoch):
+    def save_imgs(self):
 
         gen_img = self.generator.predict(self.noise_pred)
         confidence = self.discriminator.predict(gen_img)
@@ -203,7 +203,7 @@ class DCGAN():
         # Rescale image to 0 - 255
         gen_img = (0.5 * gen_img + 0.5)*255
 
-        cv2.imwrite('car\\%d_%f.png'%(epoch, confidence), gen_img[0])
+        cv2.imwrite('car\\%f_%f.png'%(time.time(), confidence), gen_img[0])
 
 
     def load_dataset(self,path):

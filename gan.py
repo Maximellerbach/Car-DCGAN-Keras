@@ -156,8 +156,8 @@ class DCGAN():
         ones = np.ones((batch_size, 1)) 
         zeros = np.zeros((batch_size, 1))
 
-        # create some noise to track progress of the AI
-        self.noise_pred = np.random.normal(0, 1, (batch_size, self.latent_dim))
+        # create some noise to track AI's progression
+        self.noise_pred = np.random.normal(0, 1, (1, self.latent_dim))
 
         epoch = 0
         while(1):
@@ -197,25 +197,24 @@ class DCGAN():
 
     def save_imgs(self, epoch):
 
-        gen_img = self.generator.predict(self.noise_pred) #predict with the same latent
+        gen_img = self.generator.predict(self.noise_pred)
         confidence = self.discriminator.predict(gen_img)
 
-        # Rescale image 0 - 255
+        # Rescale image to 0 - 255
         gen_img = (0.5 * gen_img + 0.5)*255
 
-        for i in range(self.noise_pred.shape[0]):
-            cv2.imwrite('car\\%d_%f.png'%(epoch, confidence), gen_img[i])
+        cv2.imwrite('car\\%d_%f.png'%(epoch, confidence), gen_img[0])
 
 
     def load_dataset(self,path):
 
         try:
-            
+            # try to load existing X_train
             X_train = np.load('X_train.npy')
             print('loaded dataset')
 
         except:
-
+            # else, build X_train and save it
             X_train = []
             dos = glob(path)
 
@@ -228,7 +227,7 @@ class DCGAN():
             cv2.destroyAllWindows()
             X_train = np.array(X_train)
 
-            # Rescale -1 to 1
+            # Rescale dataset to -1 - 1
             X_train = X_train / 127.5 - 1
 
             np.save('X_train.npy',X_train)

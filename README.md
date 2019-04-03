@@ -1,7 +1,7 @@
 # Car-DCGAN-Keras
 
 ![training](training.gif)
-![exemple](1554292379.031903_1.0.png)
+![exemple](gen/1554292379.031903_1.0.png)
 * My implementation of a DCGAN in keras with tensorflow.
 
 * The usage is simple, run gan.py to train the generator and discriminator, if you want to generate images, just execute generate.py.

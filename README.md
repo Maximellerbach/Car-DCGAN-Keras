@@ -1,10 +1,10 @@
 # Car-DCGAN-Keras
 
 ![training](training.gif)
-![exemple](car/1554321002.6462195_1.0.png)
-![exemple2](car/1554321005.7100232_1.0.png)
-![exemple3](car/1554321005.2707386_1.0.png)
-![exemple3](car/1554321004.0519686_1.0.png)
+![exemple](gen/1554321002.6462195_1.0.png)
+![exemple2](gen/1554321005.7100232_1.0.png)
+![exemple3](gen/1554321005.2707386_1.0.png)
+![exemple3](gen/1554321004.0519686_1.0.png)
 
 * My implementation of a DCGAN in keras with tensorflow.
 

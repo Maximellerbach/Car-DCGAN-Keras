@@ -29,7 +29,7 @@ class DCGAN():
         self.latent_dim = 100
 
 
-        optimizer = Adam(0.0001, 0.5)
+        optimizer = Adam(0.0002, 0.5)
 
         '''
         # uncomment to build discriminator, generator
@@ -60,7 +60,7 @@ class DCGAN():
 
         model = Sequential()
 
-        model.add(Dense(6 * 9 * 256, activation="relu", input_dim=self.latent_dim))
+        model.add(Dense(6 * 9 * 256, activation="relu", use_bias = False, input_dim=self.latent_dim))
         model.add(Reshape((6, 9, 256)))
 
         model.add(Conv2D(256, kernel_size=(3,3), padding="same"))
@@ -181,7 +181,7 @@ class DCGAN():
             g_loss = self.combined.train_on_batch(noise, ones)
 
             #print loss and accuracy of both trains
-            print ("%d D loss: %f, acc.: %.2f%% G loss: %f" % (epoch, d_loss[0], 100*d_loss[1], g_loss))
+            print ("%d D loss: %f, acc.: %.2f%% G loss: %f" % (epoch, d_loss[0], 100*d_loss[1], g_loss/batch_size))
             
 
             if epoch % save_img_interval == 0:
@@ -195,15 +195,15 @@ class DCGAN():
                 self.discriminator.save('vroum\\vroumdis.h5')
                 self.generator.save('vroum\\vroumgen.h5')
 
-    def save_imgs(self):
+    def save_imgs(self, e):
 
         gen_img = self.generator.predict(self.noise_pred)
-        confidence = self.discriminator.predict(gen_img)
+        #confidence = self.discriminator.predict(gen_img)
 
         # Rescale image to 0 - 255
         gen_img = (0.5 * gen_img + 0.5)*255
 
-        cv2.imwrite('car\\%f_%f.png'%(time.time(), confidence), gen_img[0])
+        cv2.imwrite('car\\%f_%d.png'%(time.time(), e), gen_img[0])
 
 
     def load_dataset(self,path):
@@ -239,4 +239,4 @@ class DCGAN():
 if __name__ == '__main__':
 
     cgan = DCGAN()
-    cgan.train(batch_size=8, save_interval=5000, save_img_interval=25)
+    cgan.train(batch_size=32, save_interval=2500, save_img_interval=25)

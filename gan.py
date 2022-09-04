@@ -3,24 +3,21 @@ import time
 from glob import glob
 
 import cv2
-import h5py
-import matplotlib.pyplot as plt
 import numpy as np
-from keras.layers import (Activation, BatchNormalization, Dense, Dropout,
-                          Embedding, Flatten, Input, Reshape, ZeroPadding2D,
-                          multiply)
-from keras.layers.advanced_activations import LeakyReLU
-from keras.layers.convolutional import (AveragePooling2D, Conv2D,
-                                        Conv2DTranspose, MaxPooling2D,
-                                        UpSampling2D, ZeroPadding2D)
-from keras.models import Model, Sequential, load_model
-from keras.optimizers import Adam
+from tensorflow.keras.layers import (Activation, AveragePooling2D,
+                                     BatchNormalization, Conv2D,
+                                     Conv2DTranspose, Dense, Dropout, Flatten,
+                                     Input, LeakyReLU, MaxPooling2D, Reshape,
+                                     SeparableConv2D, UpSampling2D,
+                                     ZeroPadding2D, multiply)
+from tensorflow.keras.models import Model, Sequential, load_model
+from tensorflow.keras.optimizers import Adam
 from tqdm import tqdm
 
 
 class DCGAN():
 
-    def __init__(self):
+    def __init__(self, pretrained=True):
 
         self.img_rows = 100
         self.img_cols = 150
@@ -28,169 +25,155 @@ class DCGAN():
         self.img_shape = (self.img_rows, self.img_cols, self.channels)
         self.latent_dim = 100
 
+        optimizer = Adam(0.0005, 0.5)
+        
+        if pretrained:
+            self.discriminator = load_model('vroum\\vroumdis.h5')
+            self.discriminator.compile(
+                loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+            self.generator = load_model('vroum\\vroumgen.h5')
 
-        optimizer = Adam(0.0002, 0.5)
+        else:    
+            self.discriminator = self.create_discriminator()
+            self.discriminator.compile(loss='binary_crossentropy',optimizer=optimizer,metrics=['accuracy'])
+            self.generator = self.create_generator()
 
-        '''
-        # uncomment to build discriminator, generator
-        
-        self.discriminator = self.create_discriminator()
-        self.discriminator.compile(loss='binary_crossentropy',optimizer=optimizer,metrics=['accuracy'])
-        self.generator = self.create_generator()
-        
-        '''
-
-        # uncomment to load discriminator, generator
-        self.discriminator = load_model('vroum\\vroumdis.h5')
-        self.discriminator.compile(loss='binary_crossentropy',optimizer=optimizer,metrics=['accuracy'])
-        self.generator = load_model('vroum\\vroumgen.h5')
-        
-        # the combined model take an image as input and output validity from 0 to 1
-        # note that in the combined model, the discriminator is not trainable
-        self.discriminator.trainable = False
-        
         z = Input(shape=(self.latent_dim,))
         img = self.generator(z)
         valid = self.discriminator(img)
 
-        self.combined = Model(z, valid) 
+        self.combined = Model(z, valid)
         self.combined.compile(loss='binary_crossentropy', optimizer=optimizer)
 
     def create_generator(self):
 
         model = Sequential()
 
-        model.add(Dense(6 * 9 * 256, activation="relu", use_bias = False, input_dim=self.latent_dim))
-        model.add(Reshape((6, 9, 256)))
+        inp = Input(shape=(self.latent_dim,))
+        x = Dense(6 * 9 * 256, activation="relu", use_bias=False)(inp)
+        x = Reshape((6, 9, 256))(x)
 
-        model.add(Conv2D(256, kernel_size=(3,3), padding="same"))
-        model.add(Activation("relu"))
-        model.add(BatchNormalization(momentum=0.8))
+        x = SeparableConv2D(256, kernel_size=3, padding="same")(x)
+        x = Activation("relu")(x)
+        x = BatchNormalization(momentum=0.8)(x)
 
-        model.add(UpSampling2D())
+        x = UpSampling2D()(x)
+
+        x = SeparableConv2D(128, kernel_size=3, padding="same")(x)
+        x = Activation("relu")(x)
+        x = BatchNormalization(momentum=0.8)(x)
+
+        x = UpSampling2D()(x)
+        x = ZeroPadding2D(padding=((0, 1), (0, 1)))(x)
+
+        x = SeparableConv2D(64, kernel_size=3, padding="same")(x)
+        x = Activation("relu")(x)
+        x = BatchNormalization(momentum=0.8)(x)
+
+        x = UpSampling2D()(x)
+        x = ZeroPadding2D(padding=(0, (1, 0)))(x)
+
+        x = SeparableConv2D(32, kernel_size=3, padding="same")(x)
+        x = Activation("relu")(x)
+        x = BatchNormalization(momentum=0.8)(x)
         
-        model.add(Conv2D(128, kernel_size=(3,3), padding="same"))
-        model.add(Activation("relu"))
-        model.add(BatchNormalization(momentum=0.8))
+        x = UpSampling2D()(x)
+
+        x = SeparableConv2D(16, kernel_size=3, padding="same")(x)
+        x = Activation("relu")(x)
+        x = BatchNormalization(momentum=0.8)(x)
         
-        model.add(UpSampling2D())
+        x = SeparableConv2D(self.channels, kernel_size=1, padding="same", activation="tanh")(x)
 
-        model.add(ZeroPadding2D(padding = ((0,1),(0,1))))
-
-        model.add(Conv2D(64, kernel_size=(3,3), padding="same"))
-        model.add(Activation("relu"))
-        model.add(BatchNormalization(momentum=0.8))
-
-        model.add(UpSampling2D())
-
-        model.add(ZeroPadding2D(padding = (0,(1,0))))
-
-        model.add(Conv2D(32, kernel_size=(3,3), padding="same"))
-        model.add(Activation("relu"))
-        model.add(BatchNormalization(momentum=0.8))
-
-        model.add(UpSampling2D())
-
-        model.add(Conv2D(16, kernel_size=(3,3), padding="same"))
-        model.add(Activation("relu"))
-        model.add(BatchNormalization(momentum=0.8))
-
-        model.add(Conv2D(self.channels, kernel_size=(1,1), padding="same"))
-        model.add(Activation("tanh"))
-
-        noise = Input(shape=(self.latent_dim,))
-        img = model(noise)
-
+        model = Model(inp, x)
         model.summary()
-
-        return Model(noise, img)
-
-
-
+        return model
 
     def create_discriminator(self):
-        
+
         model = Sequential()
 
-        model.add(Conv2D(32, kernel_size=3, strides=2, input_shape=self.img_shape, padding="same"))
-        model.add(BatchNormalization(momentum=0.8))
-        model.add(LeakyReLU(alpha=0.2))
-        model.add(AveragePooling2D())
-        model.add(Dropout(0.2))
+        inp = Input(shape=self.img_shape)
 
-        model.add(Conv2D(64, kernel_size=3, strides=2, padding="same"))
-        model.add(BatchNormalization(momentum=0.8))
-        model.add(LeakyReLU(alpha=0.2))
-        model.add(AveragePooling2D())
-        model.add(Dropout(0.2))
+        x = SeparableConv2D(16, kernel_size=3, strides=2, padding="same", use_bias=False)(inp)
+        x = BatchNormalization(momentum=0.8)(x)
+        x = LeakyReLU(alpha=0.2)(x)
+        x = Dropout(0.1)(x)
+        
+        x = SeparableConv2D(32, kernel_size=3, strides=2, padding="same", use_bias=False)(x)
+        x = BatchNormalization(momentum=0.8)(x)
+        x = LeakyReLU(alpha=0.2)(x)
+        x = Dropout(0.1)(x)
 
-        model.add(Conv2D(128, kernel_size=3, strides=2, padding="same"))
-        model.add(BatchNormalization(momentum=0.8))
-        model.add(LeakyReLU(alpha=0.2))
-        model.add(Dropout(0.2))
+        x = SeparableConv2D(64, kernel_size=3, strides=2, padding="same", use_bias=False)(x)
+        x = BatchNormalization(momentum=0.8)(x)
+        x = LeakyReLU(alpha=0.2)(x)
+        x = Dropout(0.1)(x)
 
-        model.add(Conv2D(256, kernel_size=3, strides=1, padding="same"))
-        model.add(BatchNormalization(momentum=0.8))
-        model.add(LeakyReLU(alpha=0.2))
-        model.add(Dropout(0.2))
+        x = SeparableConv2D(128, kernel_size=3, strides=2, padding="same", use_bias=False)(x)
+        x = BatchNormalization(momentum=0.8)(x)
+        x = LeakyReLU(alpha=0.2)(x)
+        x = Dropout(0.1)(x)
 
-        model.add(Flatten())
-        model.add(Dense(1, activation='sigmoid'))
+        x = SeparableConv2D(256, kernel_size=3, strides=2, padding="same", use_bias=False)(x)
+        x = BatchNormalization(momentum=0.8)(x)
+        x = LeakyReLU(alpha=0.2)(x)
+        x = Dropout(0.1)(x)
 
-        img = Input(shape=self.img_shape)
-        validity = model(img)
+        x = SeparableConv2D(512, kernel_size=(4, 5), strides=1, use_bias=False)(x)
 
+        x = Flatten()(x)
+        validity = Dense(1, activation='sigmoid', use_bias=False)(x)
+
+        model = Model(inp, validity)
         model.summary()
-
-        return Model(img, validity)
-
-    
+        return model
 
     def train(self, batch_size=128, save_interval=50, save_img_interval=50):
-        
-        #get dataset
+
+        # get dataset
         X_train = self.load_dataset('car_img\\*')
 
         # ones = label for real images
         # zeros = label for fake images
-        ones = np.ones((batch_size, 1)) 
+        ones = np.ones((batch_size, 1))
         zeros = np.zeros((batch_size, 1))
 
         # create some noise to track AI's progression
         self.noise_pred = np.random.normal(0, 1, (1, self.latent_dim))
 
         epoch = 0
-        while(1):
-            epoch+=1
+        while (1):
+            epoch += 1
 
             # Select a random batch of images in dataset
             idx = np.random.randint(0, X_train.shape[0], batch_size)
             imgs = X_train[idx]
 
-            
             # Sample noise and generate a batch of new images
             noise = np.random.normal(0, 1, (batch_size, self.latent_dim))
-            gen_imgs = self.generator.predict(noise)   
+            gen_imgs = self.generator(noise, training=False)
 
             # Train the discriminator with generated images and real images
+            self.discriminator.trainable = True            
             d_loss_r = self.discriminator.train_on_batch(imgs, ones)
             d_loss_f = self.discriminator.train_on_batch(gen_imgs, zeros)
-            d_loss = np.add(d_loss_r , d_loss_f)*0.5
+            d_loss = np.add(d_loss_r, d_loss_f)*0.5
 
             # Trains the generator to fool the discriminator
+            self.combined.layers[2].trainable = False
             g_loss = self.combined.train_on_batch(noise, ones)
 
-            #print loss and accuracy of both trains
-            print ("%d D loss: %f, acc.: %.2f%% G loss: %f" % (epoch, d_loss[0], 100*d_loss[1], g_loss/batch_size))
-            
+            # print loss and accuracy of both trains
+            print(f"{epoch} D loss: {d_loss[0]}, acc: {100*d_loss[1]}% G loss: {g_loss/batch_size}")
 
             if epoch % save_img_interval == 0:
                 self.save_imgs(epoch)
-            
+
             if epoch % save_interval == 0:
 
-                #self.discriminator.save('gan\\vroum\\vroumdis_'+str(epoch)+'.h5')
-                #self.generator.save('gan\\vroum\\vroumgen_'+str(epoch)+'.h5')
+                # self.discriminator.save('gan\\vroum\\vroumdis_'+str(epoch)+'.h5')
+                # self.generator.save('gan\\vroum\\vroumgen_'+str(epoch)+'.h5')
 
                 self.discriminator.save('vroum\\vroumdis.h5')
                 self.generator.save('vroum\\vroumgen.h5')
@@ -203,24 +186,23 @@ class DCGAN():
         # Rescale image to 0 - 255
         gen_img = (0.5 * gen_img + 0.5)*255
 
-        cv2.imwrite('car\\%f_%d.png'%(time.time(), e), gen_img[0])
+        cv2.imwrite('car\\%f_%d.png' % (time.time(), e), gen_img[0])
 
-
-    def load_dataset(self,path):
+    def load_dataset(self, path):
 
         try:
             # try to load existing X_train
             X_train = np.load('X_train.npy')
             print('loaded dataset')
 
-        except:
+        except FileNotFoundError as e:
             # else, build X_train and save it
             X_train = []
             dos = glob(path)
 
             for i in tqdm(dos):
                 img = cv2.imread(i)
-                img = cv2.resize(img,(self.img_cols, self.img_rows))
+                img = cv2.resize(img, (self.img_cols, self.img_rows))
 
                 X_train.append(img)
 
@@ -230,13 +212,13 @@ class DCGAN():
             # Rescale dataset to -1 - 1
             X_train = X_train / 127.5 - 1
 
-            np.save('X_train.npy',X_train)
+            np.save('X_train.npy', X_train)
             print('created dataset')
-            
+
         return X_train
 
 
 if __name__ == '__main__':
 
-    cgan = DCGAN()
+    cgan = DCGAN(pretrained=False)
     cgan.train(batch_size=32, save_interval=2500, save_img_interval=25)

@@ -8,8 +8,8 @@ from tensorflow.keras.layers import (Activation, AveragePooling2D,
                                      BatchNormalization, Conv2D,
                                      Conv2DTranspose, Dense, Dropout, Flatten,
                                      Input, LeakyReLU, MaxPooling2D, Reshape,
-                                     SeparableConv2D, UpSampling2D,
-                                     ZeroPadding2D, multiply)
+                                     SeparableConv2D, SpatialDropout2D,
+                                     UpSampling2D, ZeroPadding2D, multiply)
 from tensorflow.keras.models import Model, Sequential, load_model
 from tensorflow.keras.optimizers import Adam
 from tqdm import tqdm
@@ -26,16 +26,20 @@ class DCGAN():
         self.latent_dim = 100
 
         optimizer = Adam(0.0005, 0.5)
-        
+
         if pretrained:
-            self.discriminator = load_model('vroum\\vroumdis.h5')
+            self.discriminator = load_model('vroum\\vroumdis2.h5')
             self.discriminator.compile(
                 loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
-            self.generator = load_model('vroum\\vroumgen.h5')
+            self.generator = load_model('vroum\\vroumgen2.h5')
+            
+            self.discriminator.trainable = True
+            self.generator.trainable = True
 
-        else:    
+        else:
             self.discriminator = self.create_discriminator()
-            self.discriminator.compile(loss='binary_crossentropy',optimizer=optimizer,metrics=['accuracy'])
+            self.discriminator.compile(
+                loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
             self.generator = self.create_generator()
 
         z = Input(shape=(self.latent_dim,))
@@ -50,10 +54,10 @@ class DCGAN():
         model = Sequential()
 
         inp = Input(shape=(self.latent_dim,))
-        x = Dense(6 * 9 * 256, activation="relu", use_bias=False)(inp)
-        x = Reshape((6, 9, 256))(x)
+        x = Dense(6 * 9 * 16, activation="relu", use_bias=False)(inp)
+        x = Reshape((6, 9, 16))(x)
 
-        x = SeparableConv2D(256, kernel_size=3, padding="same")(x)
+        x = Conv2DTranspose(256, kernel_size=3, padding="same")(x)
         x = Activation("relu")(x)
         x = BatchNormalization(momentum=0.8)(x)
 
@@ -76,14 +80,15 @@ class DCGAN():
         x = SeparableConv2D(32, kernel_size=3, padding="same")(x)
         x = Activation("relu")(x)
         x = BatchNormalization(momentum=0.8)(x)
-        
+
         x = UpSampling2D()(x)
 
         x = SeparableConv2D(16, kernel_size=3, padding="same")(x)
         x = Activation("relu")(x)
         x = BatchNormalization(momentum=0.8)(x)
-        
-        x = SeparableConv2D(self.channels, kernel_size=1, padding="same", activation="tanh")(x)
+
+        x = SeparableConv2D(self.channels, kernel_size=1,
+                            padding="same", activation="tanh")(x)
 
         model = Model(inp, x)
         model.summary()
@@ -95,35 +100,44 @@ class DCGAN():
 
         inp = Input(shape=self.img_shape)
 
-        x = SeparableConv2D(16, kernel_size=3, strides=2, padding="same", use_bias=False)(inp)
+        x = SeparableConv2D(16, kernel_size=3, strides=2,
+                            padding="same", use_bias=False)(inp)
         x = BatchNormalization(momentum=0.8)(x)
         x = LeakyReLU(alpha=0.2)(x)
-        x = Dropout(0.1)(x)
-        
-        x = SeparableConv2D(32, kernel_size=3, strides=2, padding="same", use_bias=False)(x)
-        x = BatchNormalization(momentum=0.8)(x)
-        x = LeakyReLU(alpha=0.2)(x)
-        x = Dropout(0.1)(x)
 
-        x = SeparableConv2D(64, kernel_size=3, strides=2, padding="same", use_bias=False)(x)
+        x = SeparableConv2D(32, kernel_size=3, strides=2,
+                            padding="same", use_bias=False)(x)
         x = BatchNormalization(momentum=0.8)(x)
         x = LeakyReLU(alpha=0.2)(x)
-        x = Dropout(0.1)(x)
 
-        x = SeparableConv2D(128, kernel_size=3, strides=2, padding="same", use_bias=False)(x)
+        x = SeparableConv2D(64, kernel_size=3, strides=2,
+                            padding="same", use_bias=False)(x)
         x = BatchNormalization(momentum=0.8)(x)
         x = LeakyReLU(alpha=0.2)(x)
-        x = Dropout(0.1)(x)
 
-        x = SeparableConv2D(256, kernel_size=3, strides=2, padding="same", use_bias=False)(x)
+        x = SeparableConv2D(128, kernel_size=3, strides=2,
+                            padding="same", use_bias=False)(x)
         x = BatchNormalization(momentum=0.8)(x)
         x = LeakyReLU(alpha=0.2)(x)
-        x = Dropout(0.1)(x)
 
-        x = SeparableConv2D(512, kernel_size=(4, 5), strides=1, use_bias=False)(x)
+        x = SeparableConv2D(256, kernel_size=3, strides=2,
+                            padding="same", use_bias=False)(x)
+        x = BatchNormalization(momentum=0.8)(x)
+        x = LeakyReLU(alpha=0.2)(x)
+
+        x = SeparableConv2D(512, kernel_size=3, strides=1, use_bias=False)(x)
+        x = BatchNormalization(momentum=0.8)(x)
+        x = LeakyReLU(alpha=0.2)(x)
+
+        x = SpatialDropout2D(0.2)(x)
+
+        x = SeparableConv2D(1, kernel_size=1, strides=1, use_bias=False)(x)
+        x = BatchNormalization(momentum=0.8)(x)
+        x = LeakyReLU(alpha=0.2)(x)
 
         x = Flatten()(x)
-        validity = Dense(1, activation='sigmoid', use_bias=False)(x)
+
+        validity = Dense(1, activation="sigmoid")(x)
 
         model = Model(inp, validity)
         model.summary()
@@ -132,7 +146,7 @@ class DCGAN():
     def train(self, batch_size=128, save_interval=50, save_img_interval=50):
 
         # get dataset
-        X_train = self.load_dataset('car_img\\*')
+        X_train = self.load_dataset('C:\\Users\\maxim\\car_img\\*')
 
         # ones = label for real images
         # zeros = label for fake images
@@ -155,7 +169,7 @@ class DCGAN():
             gen_imgs = self.generator(noise, training=False)
 
             # Train the discriminator with generated images and real images
-            self.discriminator.trainable = True            
+            self.discriminator.trainable = True
             d_loss_r = self.discriminator.train_on_batch(imgs, ones)
             d_loss_f = self.discriminator.train_on_batch(gen_imgs, zeros)
             d_loss = np.add(d_loss_r, d_loss_f)*0.5
@@ -165,7 +179,8 @@ class DCGAN():
             g_loss = self.combined.train_on_batch(noise, ones)
 
             # print loss and accuracy of both trains
-            print(f"{epoch} D loss: {d_loss[0]}, acc: {100*d_loss[1]}% G loss: {g_loss/batch_size}")
+            print(
+                f"{epoch} D loss: {d_loss[0]}, acc: {100*d_loss[1]}% G loss: {g_loss/batch_size}")
 
             if epoch % save_img_interval == 0:
                 self.save_imgs(epoch)
@@ -175,8 +190,8 @@ class DCGAN():
                 # self.discriminator.save('gan\\vroum\\vroumdis_'+str(epoch)+'.h5')
                 # self.generator.save('gan\\vroum\\vroumgen_'+str(epoch)+'.h5')
 
-                self.discriminator.save('vroum\\vroumdis.h5')
-                self.generator.save('vroum\\vroumgen.h5')
+                self.discriminator.save('vroum\\vroumdis2.h5')
+                self.generator.save('vroum\\vroumgen2.h5')
 
     def save_imgs(self, e):
 
@@ -220,5 +235,5 @@ class DCGAN():
 
 if __name__ == '__main__':
 
-    cgan = DCGAN(pretrained=False)
-    cgan.train(batch_size=32, save_interval=2500, save_img_interval=25)
+    cgan = DCGAN(pretrained=True)
+    cgan.train(batch_size=32, save_interval=250, save_img_interval=25)

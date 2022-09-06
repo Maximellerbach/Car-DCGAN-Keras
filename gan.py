@@ -63,8 +63,6 @@ class DCGAN:
 
     def create_generator(self):
 
-        model = Sequential()
-
         inp = Input(shape=(self.latent_dim,))
         x = Dense(6 * 9 * 256, use_bias=False)(inp)
         x = LeakyReLU(alpha=0.2)(x)
@@ -108,8 +106,6 @@ class DCGAN:
         return model
 
     def create_discriminator(self):
-
-        model = Sequential()
 
         inp = Input(shape=self.img_shape)
 
